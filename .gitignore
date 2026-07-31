@@ -1,0 +1,43 @@
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+dist/
+*.user
+*.suo
+*.cache
+*.binlog
+
+# ---- Runtime files generated next to the executable ----
+# Scoped to the publish location so an unrelated config file added later
+# is not silently ignored.
+/winui/config.json
+/winui/dist/config.json
+webdav.log
+certs/
+
+# Private keys must never be committed, wherever they end up.
+*.pfx
+*.key
+*.p12
+*.snk
+
+# ---- Local tool settings ----
+.claude/
+.vs/
+.vscode/
+.idea/
+
+# ---- OS noise ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Early Python prototype: kept locally, not published ----
+webdav_server.py
+webdav_gui.py
+selfsigned.py
+build.spec
+启动.bat
+打包.bat
+__pycache__/
+*.pyc
