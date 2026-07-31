@@ -85,7 +85,6 @@ webdav.log      错误和启停记录，上限 2 MB
 需要 Visual Studio 2022 或更新版本（含 .NET 桌面开发工作负载）以及 .NET 10 SDK。
 
 ```
-cd winui
 build.bat      编译到 bin\
 publish.bat    生成可分发产物到 dist\
 ```
@@ -97,19 +96,18 @@ publish.bat    生成可分发产物到 dist\
 ## 项目结构
 
 ```
-winui/
-  Core/
-    WebDavServer.cs           TLS 监听、认证、路径映射、响应输出
-    WebDavServer.Files.cs     GET（含 Range）、PUT、DELETE、MKCOL、COPY、MOVE
-    WebDavServer.Propfind.cs  PROPFIND、PROPPATCH、LOCK、UNLOCK
-    HttpParser.cs             请求解析、分块传输
-    CertificateManager.cs     自签名证书生成
-    AutoStartManager.cs       注册表 Run 项与计划任务
-    TrayIcon.cs               Shell_NotifyIcon 封装
-    Strings.cs                中英文界面文案
-    ConfigStore.cs            配置持久化
-  MainWindow.xaml(.cs)        界面
-  Program.cs                  入口、运行时检查、单实例
+Core/
+  WebDavServer.cs           TLS 监听、认证、路径映射、响应输出
+  WebDavServer.Files.cs     GET（含 Range）、PUT、DELETE、MKCOL、COPY、MOVE
+  WebDavServer.Propfind.cs  PROPFIND、PROPPATCH、LOCK、UNLOCK
+  HttpParser.cs             请求解析、分块传输
+  CertificateManager.cs     自签名证书生成
+  AutoStartManager.cs       注册表 Run 项与计划任务
+  TrayIcon.cs               Shell_NotifyIcon 封装
+  Strings.cs                中英文界面文案
+  ConfigStore.cs            配置持久化
+MainWindow.xaml(.cs)        界面
+Program.cs                  入口、运行时检查、单实例
 ```
 
 服务端用的是 `TcpListener` + `SslStream`，而不是 `HttpListener`。后者绑定 HTTPS 需要

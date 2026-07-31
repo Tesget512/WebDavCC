@@ -92,7 +92,6 @@ after a system-wide install, this is likely why.
 Requires Visual Studio 2022 or newer with the .NET desktop workload, and the .NET 10 SDK.
 
 ```
-cd winui
 build.bat      Build into bin\
 publish.bat    Redistributable output into dist\
 ```
@@ -105,19 +104,18 @@ path, edit the `MSBUILD` variable at the top of both scripts.
 ## Project layout
 
 ```
-winui/
-  Core/
-    WebDavServer.cs           TLS listener, auth, path mapping, response writing
-    WebDavServer.Files.cs     GET with byte ranges, PUT, DELETE, MKCOL, COPY, MOVE
-    WebDavServer.Propfind.cs  PROPFIND, PROPPATCH, LOCK, UNLOCK
-    HttpParser.cs             Request parsing, chunked bodies
-    CertificateManager.cs     Self-signed certificate generation
-    AutoStartManager.cs       Registry Run entry and scheduled task
-    TrayIcon.cs               Shell_NotifyIcon wrapper
-    Strings.cs                English and Chinese interface text
-    ConfigStore.cs            Settings persistence
-  MainWindow.xaml(.cs)        Interface
-  Program.cs                  Entry point, runtime check, single instance
+Core/
+  WebDavServer.cs           TLS listener, auth, path mapping, response writing
+  WebDavServer.Files.cs     GET with byte ranges, PUT, DELETE, MKCOL, COPY, MOVE
+  WebDavServer.Propfind.cs  PROPFIND, PROPPATCH, LOCK, UNLOCK
+  HttpParser.cs             Request parsing, chunked bodies
+  CertificateManager.cs     Self-signed certificate generation
+  AutoStartManager.cs       Registry Run entry and scheduled task
+  TrayIcon.cs               Shell_NotifyIcon wrapper
+  Strings.cs                English and Chinese interface text
+  ConfigStore.cs            Settings persistence
+MainWindow.xaml(.cs)        Interface
+Program.cs                  Entry point, runtime check, single instance
 ```
 
 The server uses `TcpListener` with `SslStream` rather than `HttpListener`. Binding HTTPS

@@ -10,8 +10,8 @@ dist/
 # ---- Runtime files generated next to the executable ----
 # Scoped to the publish location so an unrelated config file added later
 # is not silently ignored.
-/winui/config.json
-/winui/dist/config.json
+/config.json
+/dist/config.json
 webdav.log
 certs/
 
