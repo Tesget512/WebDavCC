@@ -113,6 +113,8 @@ public sealed partial class MainWindow : Window
 
         if (autoStart)
         {
+            // 成功路径默认不落盘，出问题（比如用户说"自启动没生效"）时无据可查
+            FileLogger.Write("Launched by autostart (--autostart)");
             AppendLog(Strings.AutoStartTriggered, LogLevel.Muted);
             if (_config.StartMinimizedToTray)
             {
@@ -329,7 +331,7 @@ public sealed partial class MainWindow : Window
         {
             return;
         }
-        if (newName.Contains('/') || newName.Contains('\\'))
+        if (!IsValidMountName(newName))
         {
             await ShowMessageAsync(Strings.InvalidNameTitle, Strings.InvalidNameBody);
             return;
@@ -345,6 +347,14 @@ public sealed partial class MainWindow : Window
         SaveConfig();
     }
 
+    /// <summary>
+    /// 挂载名会拼进 URL 和本地路径：含 : * ? 等字符会让 Path.GetFullPath 抛异常，
+    /// "." / ".." 则在路径解析时会被吞掉，一律拒绝。
+    /// </summary>
+    private static bool IsValidMountName(string name) =>
+        name.Length > 0 && name != "." && name != ".." &&
+        name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+
     // ---------------- 启停 ----------------
 
     private async void OnToggleServer(object sender, RoutedEventArgs e)
@@ -359,7 +369,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task StartServerAsync(bool silent)
+    /// <summary>启动服务。返回是否成功，供自启动流程判断是否弹气泡。</summary>
+    private async Task<bool> StartServerAsync(bool silent)
     {
         CollectUiIntoConfig();
 
@@ -369,7 +380,7 @@ public sealed partial class MainWindow : Window
             {
                 await ShowMessageAsync(Strings.NoSharesTitle, Strings.NoSharesBody);
             }
-            return;
+            return false;
         }
 
         var missing = _config.Shares.Where(p => !Directory.Exists(p.Value)).ToList();
@@ -381,7 +392,7 @@ public sealed partial class MainWindow : Window
             {
                 await ShowMessageAsync(Strings.MissingDirTitle, Strings.MissingDirBody(text));
             }
-            return;
+            return false;
         }
 
         if (_config.RequiresAuth && string.IsNullOrEmpty(_config.Password))
@@ -390,7 +401,7 @@ public sealed partial class MainWindow : Window
             {
                 await ShowMessageAsync(Strings.MissingPasswordTitle, Strings.MissingPasswordBody);
             }
-            return;
+            return false;
         }
 
         ToggleButton.IsEnabled = false;
@@ -423,11 +434,27 @@ public sealed partial class MainWindow : Window
             SetInputsEnabled(false);
             UpdateTray(true);
             SaveConfig();
+
+            // Win11 默认把托盘图标收进"隐藏图标"折叠区，自启动成功时给个气泡
+            // 提示，否则用户会误以为自启动没有生效
+            if (silent)
+            {
+                var url = _urls.FirstOrDefault(u => !u.Contains("127.0.0.1")) ?? _urls[0];
+                _tray?.ShowBalloon(Strings.TrayStartedTitle,
+                    Strings.TrayStartedBody(url));
+            }
+            return true;
         }
         catch (SocketException ex)
         {
             var message = ex.SocketErrorCode switch
             {
+                SocketError.AddressAlreadyInUse when System.Diagnostics.Process
+                        .GetProcessesByName(Environment.ProcessPath is null
+                            ? "WebDavCC"
+                            : System.IO.Path.GetFileNameWithoutExtension(Environment.ProcessPath))
+                    .Length > 1
+                    => Strings.PortInUseByInstance(_config.Port),
                 SocketError.AddressAlreadyInUse => Strings.PortInUse(_config.Port),
                 SocketError.AccessDenied => Strings.PortDenied(_config.Port),
                 _ => ex.Message,
@@ -442,6 +469,7 @@ public sealed partial class MainWindow : Window
         {
             ToggleButton.IsEnabled = true;
         }
+        return false;
     }
 
     private async Task FailStartAsync(string message, bool silent)
@@ -609,15 +637,31 @@ public sealed partial class MainWindow : Window
             ? AutoStartMode.Boot
             : AutoStartMode.Logon;
 
+        // 失败回滚要用：切换方式前先把原状态记下来（配置在启动时已和系统实际状态对齐）
+        var previousEnabled = _config.AutoStartEnabled;
+        var previousMode = _config.AutoStartMode;
+
         var (success, message) = await Task.Run(() => AutoStartManager.Apply(enabled, mode));
         AppendLog(message, success ? LogLevel.Success : LogLevel.Error);
 
         if (!success)
         {
-            // 注册失败时回滚开关，避免界面显示与实际状态不符
+            // 失败时注册表/计划任务处于半成品状态：Apply(true, mode) 可能已把
+            // 另一种入口删掉。恢复到切换前的配置，避免自启动彻底失效。
             _suppressEvents = true;
-            AutoStartSwitch.IsOn = AutoStartManager.IsEnabled(mode);
-            AutoStartModeBox.IsEnabled = AutoStartSwitch.IsOn;
+            if (previousEnabled)
+            {
+                var (restored, _) = await Task.Run(
+                    () => AutoStartManager.Apply(true, previousMode));
+                FileLogger.Write(restored
+                    ? $"Autostart restored to {previousMode}"
+                    : "Autostart restore failed");
+            }
+            var actual = previousEnabled ? previousMode : AutoStartMode.Logon;
+            var on = previousEnabled && AutoStartManager.IsEnabled(actual);
+            AutoStartSwitch.IsOn = on;
+            AutoStartModeBox.SelectedIndex = previousMode == AutoStartMode.Boot ? 1 : 0;
+            AutoStartModeBox.IsEnabled = on;
             _suppressEvents = false;
             await ShowMessageAsync(Strings.AutoStartFailedTitle, message);
             return;
@@ -675,13 +719,43 @@ public sealed partial class MainWindow : Window
         _tray.AddSeparator();
         _tray.AddMenuItem(Strings.TrayExit, () => Post(async () =>
         {
-            _reallyClosing = true;
-            await StopServerAsync();
-            _tray?.Dispose();
-            _tray = null;
-            Application.Current.Exit();
+            // 服务在跑时退出会掐断所有客户端连接，先确认一下
+            if (_server is not null)
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = Content.XamlRoot,
+                    Title = Strings.ExitConfirmTitle,
+                    Content = new TextBlock
+                    {
+                        Text = Strings.ExitConfirmBody,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    PrimaryButtonText = Strings.DialogOk,
+                    CloseButtonText = Strings.DialogCancel,
+                    DefaultButton = ContentDialogButton.Primary,
+                };
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+            }
+            QuitApplication();
         }));
     }
+
+    private async void QuitApplication()
+    {
+        _reallyClosing = true;
+        await StopServerAsync();
+        SaveConfig();
+        _tray?.Dispose();
+        _tray = null;
+        Application.Current.Exit();
+    }
+
+    /// <summary>第二个进程实例请求弹出主窗口（自启动的实例窗口可能是隐藏的）。</summary>
+    public void RequestShow() => Post(ShowMainWindow);
 
     private void ShowMainWindow() => Post(() =>
     {

@@ -7,6 +7,9 @@ dist/
 *.cache
 *.binlog
 
+# ---- Release archives (regenerate with publish.bat) ----
+WebDavCC-v*.zip
+
 # ---- Runtime files generated next to the executable ----
 # Scoped to the publish location so an unrelated config file added later
 # is not silently ignored.

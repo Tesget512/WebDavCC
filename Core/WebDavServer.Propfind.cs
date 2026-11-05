@@ -380,6 +380,16 @@ public sealed partial class WebDavServer
             // owner 只用于展示，解析失败无妨
         }
 
+        var lockTarget = local ?? request.Path;
+
+        // 同一资源上已存在锁时按 RFC 4918 拒绝，而不是悄悄再发一个 token；
+        // Windows 资源管理器靠 exclusive 锁协调写入，重复加锁会让第二个
+        // 写入者误以为自己持有锁
+        if (_locks.IsLocked(lockTarget))
+        {
+            return await SendEmptyAsync(stream, request, 423, token);
+        }
+
         // LOCK 一个不存在的资源要创建空文件，这是 Office/资源管理器的保存流程
         var created = false;
         if (local is not null && !File.Exists(local) && !Directory.Exists(local))
@@ -392,7 +402,7 @@ public sealed partial class WebDavServer
             }
         }
 
-        var lockToken = _locks.Create(local ?? request.Path, owner, timeout);
+        var lockToken = _locks.Create(lockTarget, owner, timeout);
         return await SendXmlAsync(stream, request, created ? 201 : 200,
             LockXml(lockToken, owner, timeout, request.Path), token,
             $"Lock-Token: <{lockToken}>\r\n");
@@ -465,6 +475,17 @@ internal sealed class LockManager
             }
             _locks[token] = entry with { Expires = DateTime.UtcNow.AddSeconds(timeoutSeconds) };
             return true;
+        }
+    }
+
+    /// <summary>目标路径（不区分大小写）上是否已存在未过期的锁。</summary>
+    public bool IsLocked(string path)
+    {
+        lock (_gate)
+        {
+            Purge();
+            return _locks.Values.Any(p => string.Equals(p.Path, path,
+                StringComparison.OrdinalIgnoreCase));
         }
     }
 

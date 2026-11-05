@@ -22,14 +22,28 @@ public static class Program
 
         try
         {
+            // 激活事件必须先于互斥体创建：已在运行的实例要能立刻收到第二次启动的信号，
+            // 否则存在"对方查不到事件、白白退出"的窗口期。
+            using var showUi = new EventWaitHandle(false, EventResetMode.AutoReset,
+                SingleInstance.ShowUiEventName, out _);
+
             // 单实例：已在运行时唤起已有窗口，避免开机自启和手动点击各起一个
-            using var singleton = new Mutex(true, @"Local\WebDavShare.SingleInstance",
-                out var isFirst);
+            using var singleton = new Mutex(true, SingleInstance.MutexName, out var isFirst);
             if (!isFirst)
             {
-                SingleInstance.ActivateExisting();
+                showUi.Set();
                 return 0;
             }
+
+            // 自启动的实例把窗口藏进了托盘，此时 MainWindowHandle 为 0，
+            // 靠枚举窗口找不到它，用户会误以为"自启动没生效"。
+            // 改用命名事件：再次启动 exe 时置位事件，常驻线程负责弹出主窗口。
+            var watcher = new Thread(() => SingleInstance.WatchShowUiRequests(showUi))
+            {
+                IsBackground = true,
+                Name = "WebDavShare.ShowUiWatcher",
+            };
+            watcher.Start();
 
             XamlCheckProcessRequirements();
             WinRT.ComWrappersSupport.InitializeComWrappers();
@@ -55,26 +69,27 @@ public static class Program
 
 internal static class SingleInstance
 {
-    private const int SW_RESTORE = 9;
+    public const string MutexName = @"Local\WebDavShare.SingleInstance";
+    public const string ShowUiEventName = @"Local\WebDavShare.ShowUi";
 
-    public static void ActivateExisting()
+    /// <summary>阻塞等待激活请求；事件被释放（进程退出）时线程结束。</summary>
+    public static void WatchShowUiRequests(EventWaitHandle showUi)
     {
-        var current = System.Diagnostics.Process.GetCurrentProcess();
-        foreach (var process in System.Diagnostics.Process.GetProcessesByName(current.ProcessName))
+        try
         {
-            if (process.Id == current.Id || process.MainWindowHandle == IntPtr.Zero)
+            while (showUi.WaitOne())
             {
-                continue;
+                // MainWindow 尚未创建时（启动中）信号只能丢弃；Reference read 竞态无害
+                App.Window?.RequestShow();
             }
-            ShowWindow(process.MainWindowHandle, SW_RESTORE);
-            SetForegroundWindow(process.MainWindowHandle);
-            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            // 主线程退出时释放了句柄
+        }
+        catch (AbandonedMutexException)
+        {
+            // 其他实例异常退出留下的废弃互斥体，不影响事件等待
         }
     }
-
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hWnd, int cmdShow);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
 }

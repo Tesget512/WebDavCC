@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-
 namespace WebDavShare.Core;
 
 /// <summary>服务配置。可序列化为 config.json 持久化。</summary>
@@ -50,6 +49,9 @@ public static class ConfigStore
     {
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        // 枚举默认只认数字；手编 config.json 写 "Logon" 会让整个文件反序列化失败、
+        // 所有配置静默丢失。允许数字与字符串两种写法。
+        Converters = { new JsonStringEnumConverter() },
     };
 
     public static string DataDir

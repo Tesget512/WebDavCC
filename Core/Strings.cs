@@ -74,8 +74,9 @@ public static class Strings
         "客户端看到的名称（英文更兼容）：",
         "Name shown to clients (ASCII names are the most compatible):");
     public static string InvalidNameTitle => Pick("名称无效", "Invalid name");
-    public static string InvalidNameBody =>
-        Pick("挂载名不能包含斜杠。", "Mount names cannot contain slashes.");
+    public static string InvalidNameBody => Pick(
+        "挂载名不能包含 \\ / : * ? \" < > | 等字符，也不能是 . 或 ..",
+        "Mount names cannot contain \\ / : * ? \" < > | or be \".\" or \"..\"");
     public static string NameTakenTitle => Pick("名称重复", "Name already used");
     public static string NameTakenBody(string name) => Pick(
         $"「{name}」已被占用。", $"\"{name}\" is already in use.");
@@ -166,6 +167,13 @@ public static class Strings
     public static string PortInUse(int port) => Pick(
         $"端口 {port} 已被其他程序占用。\n\n换一个端口（比如 8444、9443）再试。",
         $"Port {port} is already in use.\n\nTry a different port, for example 8444 or 9443.");
+    public static string PortInUseByInstance(int port) => Pick(
+        $"端口 {port} 已被占用，可能有另一个 WebDavCC 实例正在运行。\n\n"
+        + "比如「系统启动即运行」的后台实例：它没有托盘图标，"
+        + "请在任务管理器里结束 WebDavCC 后再试。",
+        $"Port {port} is in use; another WebDavCC instance may be running.\n\n"
+        + "For example a background instance started with Windows - it has no tray icon. "
+        + "End WebDavCC in Task Manager first.");
     public static string PortDenied(int port) => Pick(
         $"端口 {port} 被系统拒绝。\n\n1024 以下的端口需要管理员权限，建议改用 8443 这类高位端口。",
         $"Port {port} was refused by the system.\n\n"
@@ -212,6 +220,11 @@ public static class Strings
         + "Right-click the tray icon to stop or quit.");
     public static string TrayStartFailedTitle =>
         Pick("WebDavCC 启动失败", "WebDavCC failed to start");
+    public static string TrayStartedTitle =>
+        Pick("WebDavCC 已在后台运行", "WebDavCC is running in the background");
+    public static string TrayStartedBody(string url) => Pick(
+        $"开机自启动成功，服务正在提供访问。\n{url}",
+        $"Started automatically with Windows.\n{url}");
 
     // ---------------- 自启动 ----------------
     public static string AutoStartDisabled => Pick("已关闭开机自启", "Startup entry removed");

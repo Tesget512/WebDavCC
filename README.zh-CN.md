@@ -42,6 +42,15 @@ Windows 10 1809（build 17763）或更高版本，另需：
 
 用户名留空意味着同网络任何人都能读取共享内容。
 
+### 关于两种自启方式
+
+- **登录后启动**（推荐）：登录桌面后自动进托盘并启动服务，有托盘图标。再次双击
+  程序会把已运行实例的窗口调到前台，不会重复启动。
+- **系统启动即运行**：开机即起服务，登录之前就能访问；代价是该实例运行在后台
+  会话中，没有托盘图标也没有窗口。登录桌面后双击程序会打开一个新窗口，
+  此时点「启动服务」会提示端口被后台实例占用——这是预期行为，先在任务管理器
+  结束 WebDavCC 或者只用后台实例即可。
+
 ### 命令行参数
 
 ```
@@ -82,15 +91,17 @@ webdav.log      错误和启停记录，上限 2 MB
 
 ## 编译
 
-需要 Visual Studio 2022 或更新版本（含 .NET 桌面开发工作负载）以及 .NET 10 SDK。
+只需要 .NET 10 SDK（当前版本的 Windows App SDK 用 `dotnet publish` 即可编译 WinUI 3 项目），
+Visual Studio 自带的 MSBuild 有则优先用，没有也能编。
 
 ```
 build.bat      编译到 bin\
 publish.bat    生成可分发产物到 dist\
 ```
 
-在某些机器上 `dotnet build` 会因缺少 `Microsoft.Build.Packaging.Pri.Tasks.dll` 而失败。
-脚本调用的是 Visual Studio 自带的 MSBuild，它有这个文件。如果 VS 装在非默认路径，改一下两个
+**注意**：编译必须带 `-p:RuntimeIdentifier=win-x64`。不带的话输出里不会有原生的
+`Microsoft.WindowsAppRuntime.Bootstrap.dll`，产物在任何机器上都会弹"缺少运行时"对话框、
+无法启动——跟装没装运行时无关。两个脚本已经替你加上。如果 VS 装在非默认路径，改一下两个
 脚本开头的 `MSBUILD` 变量即可。
 
 ## 项目结构

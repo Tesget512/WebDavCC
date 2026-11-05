@@ -21,6 +21,7 @@ public sealed class TrayIcon : IDisposable
 
     private readonly WndProcDelegate _wndProc;   // 必须持有，否则会被 GC 回收导致崩溃
     private readonly List<(int Id, string Text, Action? Handler, bool Enabled)> _menu = [];
+    private readonly uint _taskbarCreatedMsg;
     private IntPtr _hwnd;
     private IntPtr _icon;
     private string _tip = "";
@@ -33,6 +34,8 @@ public sealed class TrayIcon : IDisposable
     {
         _wndProc = WndProc;
         _tip = tip;
+        // explorer 崩溃重启后任务栏重建，旧图标全部消失；广播此消息时重新注册
+        _taskbarCreatedMsg = RegisterWindowMessage("TaskbarCreated");
         CreateMessageWindow();
         LoadIcon(iconPath);
     }
@@ -134,6 +137,12 @@ public sealed class TrayIcon : IDisposable
 
             case WM_DESTROY:
                 return IntPtr.Zero;
+        }
+        if (_taskbarCreatedMsg != 0 && msg == _taskbarCreatedMsg)
+        {
+            _added = false;
+            Show();
+            return IntPtr.Zero;
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -244,6 +253,9 @@ public sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern ushort RegisterClass(ref WNDCLASS wndClass);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint RegisterWindowMessage(string messageName);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateWindowEx(

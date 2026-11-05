@@ -46,6 +46,17 @@ link to the download page instead of failing silently.
 
 Leaving the username empty means anyone on the same network can read the shares.
 
+### About the two startup modes
+
+- **After sign-in** (recommended): the app sits in the tray and the server starts as soon as
+  you sign in. Launching the exe again brings the running instance's window to the front
+  instead of starting a second one.
+- **At system boot**: the server runs before anyone signs in, but that instance lives in a
+  background session with no tray icon and no window. After you sign in, double-clicking the
+  exe opens a new window; clicking **Start** there reports the port as taken by the
+  background instance - that is expected. End WebDavCC in Task Manager first, or just rely
+  on the background instance.
+
 ### Command line
 
 ```
@@ -89,17 +100,19 @@ after a system-wide install, this is likely why.
 
 ## Building
 
-Requires Visual Studio 2022 or newer with the .NET desktop workload, and the .NET 10 SDK.
+The .NET 10 SDK alone is enough (`dotnet publish` works for WinUI 3 projects with the
+current Windows App SDK). Visual Studio's MSBuild is used when available but is optional.
 
 ```
 build.bat      Build into bin\
 publish.bat    Redistributable output into dist\
 ```
 
-`dotnet build` may fail on some machines with a missing
-`Microsoft.Build.Packaging.Pri.Tasks.dll`. The scripts call the MSBuild that ships with
-Visual Studio, which has it. If Visual Studio is installed somewhere other than the default
-path, edit the `MSBUILD` variable at the top of both scripts.
+**Important**: always build with `-p:RuntimeIdentifier=win-x64`. Without it the native
+`Microsoft.WindowsAppRuntime.Bootstrap.dll` is not copied into the output and the exe
+shows a "missing runtime" dialog on every machine, no matter which runtimes are installed.
+Both scripts pass it for you. If Visual Studio is installed somewhere other than the
+default path, edit the `MSBUILD` variable at the top of both scripts.
 
 ## Project layout
 

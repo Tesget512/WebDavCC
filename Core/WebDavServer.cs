@@ -263,10 +263,19 @@ public sealed partial class WebDavServer : IAsyncDisposable
     private static bool TryCombine(string root, string[] segments, int skip, out string? result)
     {
         result = null;
-        var combined = Path.GetFullPath(
-            segments.Length > skip
-                ? Path.Combine([root, .. segments.Skip(skip)])
-                : root);
+        string combined;
+        try
+        {
+            combined = Path.GetFullPath(
+                segments.Length > skip
+                    ? Path.Combine([root, .. segments.Skip(skip)])
+                    : root);
+        }
+        // 畸形挂载名（如含 : 或引号）会让 GetFullPath 拒绝解析，按 404 处理而不是断连接
+        catch (Exception e) when (e is NotSupportedException or ArgumentException or IOException)
+        {
+            return false;
+        }
 
         // 防目录穿越：结果必须在 root 之内
         var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
